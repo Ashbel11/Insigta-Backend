@@ -51,11 +51,15 @@ def github_login(
 # ── GET /auth/github/callback ─────────────────────────────────────────────────
 @router.get("/github/callback")
 async def github_callback(
-    code: str = Query(...),
-    state: str = Query(...),
+    code: str = Query(None),
+    state: str = Query(None),
     code_verifier: str = Query(None),
     db: Session = Depends(get_db),
 ):
+    if not code:
+        return error_response(400, "Missing code parameter")
+    if not state:
+        return error_response(400, "Missing state parameter")
     """
     Handles GitHub OAuth callback.
     - For CLI: code_verifier is sent directly to this endpoint
