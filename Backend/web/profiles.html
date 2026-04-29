@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insighta Labs — Profiles</title>
+  <script src="/web/app.js"></script>
+  <style id="shared-styles"></style>
+  <style>
+    .page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .page-header h2 { font-size: 1.4rem; font-weight: 700; }
+    .tabs { display: flex; gap: 0.25rem; background: #1a1d27; border: 1px solid #2d3148;
+            border-radius: 10px; padding: 4px; width: fit-content; margin-bottom: 1.5rem; }
+    .tab { padding: 0.4rem 1rem; border-radius: 7px; cursor: pointer; font-size: 0.875rem;
+           color: #94a3b8; border: none; background: none; transition: all 0.2s; }
+    .tab.active { background: #7c6af7; color: white; }
+    .filters { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px;
+               padding: 1.25rem; margin-bottom: 1.5rem; }
+    .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
+    .filter-actions { display: flex; gap: 0.75rem; margin-top: 1rem; }
+    .search-bar { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .search-bar input { flex: 1; }
+    .table-wrapper { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; overflow: hidden; }
+    .table-header { padding: 1rem 1.5rem; border-bottom: 1px solid #2d3148;
+                    display: flex; justify-content: space-between; align-items: center; }
+    .results-count { font-size: 0.85rem; color: #94a3b8; }
+    .profile-link { color: #7c6af7; text-decoration: none; }
+    .profile-link:hover { text-decoration: underline; }
+    .gender-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; }
+    .gender-male { background: #3b82f622; color: #60a5fa; }
+    .gender-female { background: #ec489922; color: #f472b6; }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="page">
+    <div class="page-header">
+      <h2>Profiles</h2>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('filter')">Filter</button>
+      <button class="tab" onclick="switchTab('search')">Natural Language</button>
+    </div>
+
+    <!-- Filter Mode -->
+    <div id="filter-mode">
+      <div class="filters">
+        <div class="filters-grid">
+          <div class="form-group">
+            <label>Gender</label>
+            <select id="f-gender">
+              <option value="">All</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Age Group</label>
+            <select id="f-age-group">
+              <option value="">All</option>
+              <option value="child">Child</option>
+              <option value="teenager">Teenager</option>
+              <option value="adult">Adult</option>
+              <option value="senior">Senior</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Country ID</label>
+            <input type="text" id="f-country" placeholder="e.g. NG" maxlength="2" />
+          </div>
+          <div class="form-group">
+            <label>Min Age</label>
+            <input type="number" id="f-min-age" placeholder="0" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Max Age</label>
+            <input type="number" id="f-max-age" placeholder="100" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Sort By</label>
+            <select id="f-sort">
+              <option value="created_at">Created At</option>
+              <option value="age">Age</option>
+              <option value="gender_probability">Gender Prob.</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Order</label>
+            <select id="f-order">
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+          <button class="btn btn-outline" onclick="resetFilters()">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Mode -->
+    <div id="search-mode" style="display:none">
+      <div class="search-bar">
+        <input type="text" id="nlp-query" placeholder='e.g. "young males from nigeria"'
+               onkeydown="if(event.key==='Enter') doSearch()" />
+        <button class="btn btn-primary" onclick="doSearch()">Search</button>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <div class="table-header">
+        <span class="results-count" id="results-count">Loading...</span>
+      </div>
+      <div id="table-content"><div class="spinner"></div></div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <script>
+    document.getElementById("shared-styles").textContent = SHARED_STYLES;
+
+    let currentPage = 1;
+    let currentMode = "filter";
+    let lastQuery = "";
+
+    function switchTab(mode) {
+      currentMode = mode;
+      currentPage = 1;
+      document.querySelectorAll(".tab").forEach((t, i) => {
+        t.classList.toggle("active", (i === 0 && mode === "filter") || (i === 1 && mode === "search"));
+      });
+      document.getElementById("filter-mode").style.display = mode === "filter" ? "block" : "none";
+      document.getElementById("search-mode").style.display = mode === "search" ? "block" : "none";
+      if (mode === "filter") loadProfiles();
+    }
+
+    function applyFilters() { currentPage = 1; loadProfiles(); }
+    function resetFilters() {
+      ["f-gender", "f-age-group", "f-sort", "f-order"].forEach(id => document.getElementById(id).value = id === "f-sort" ? "created_at" : id === "f-order" ? "asc" : "");
+      ["f-country", "f-min-age", "f-max-age"].forEach(id => document.getElementById(id).value = "");
+      currentPage = 1;
+      loadProfiles();
+    }
+
+    async function loadProfiles() {
+      document.getElementById("table-content").innerHTML = '<div class="spinner"></div>';
+      const params = {
+        gender: document.getElementById("f-gender").value,
+        age_group: document.getElementById("f-age-group").value,
+        country_id: document.getElementById("f-country").value.toUpperCase(),
+        min_age: document.getElementById("f-min-age").value,
+        max_age: document.getElementById("f-max-age").value,
+        sort_by: document.getElementById("f-sort").value,
+        order: document.getElementById("f-order").value,
+        page: currentPage,
+        limit: 15,
+      };
+
+      const res = await apiRequest("GET", "/api/profiles", null, params);
+      if (!res) return;
+      const data = await res.json();
+      renderTable(data);
+    }
+
+    async function doSearch() {
+      const q = document.getElementById("nlp-query").value.trim();
+      if (!q) return;
+      lastQuery = q;
+      currentPage = 1;
+      document.getElementById("table-content").innerHTML = '<div class="spinner"></div>';
+
+      const res = await apiRequest("GET", "/api/profiles/search", null, { q, page: currentPage, limit: 15 });
+      if (!res) return;
+      const data = await res.json();
+      if (data.status === "error") {
+        document.getElementById("table-content").innerHTML = `<div class="empty">${data.message}</div>`;
+        document.getElementById("results-count").textContent = "No results";
+        document.getElementById("pagination").innerHTML = "";
+        return;
+      }
+      renderTable(data);
+    }
+
+    function renderTable(data) {
+      document.getElementById("results-count").textContent =
+        `${data.total.toLocaleString()} profiles — page ${data.page} of ${data.total_pages}`;
+
+      if (!data.data.length) {
+        document.getElementById("table-content").innerHTML = '<div class="empty">No profiles found.</div>';
+        document.getElementById("pagination").innerHTML = "";
+        return;
+      }
+
+      const rows = data.data.map(p => `
+        <tr>
+          <td><a class="profile-link" href="/web/profile.html?id=${p.id}">${p.name}</a></td>
+          <td><span class="gender-badge gender-${p.gender}">${p.gender}</span></td>
+          <td>${p.age}</td>
+          <td>${p.age_group}</td>
+          <td>${p.country_name} [${p.country_id}]</td>
+          <td>${p.gender_probability.toFixed(2)}</td>
+        </tr>
+      `).join("");
+
+      document.getElementById("table-content").innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Gender</th><th>Age</th>
+              <th>Group</th><th>Country</th><th>G.Prob</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+
+      // Pagination
+      const pages = data.total_pages;
+      let pgHtml = "";
+      if (data.links.prev) pgHtml += `<button class="btn btn-outline btn-sm" onclick="goPage(${data.page - 1})">← Prev</button>`;
+      pgHtml += `<span class="page-info">Page ${data.page} of ${pages}</span>`;
+      if (data.links.next) pgHtml += `<button class="btn btn-outline btn-sm" onclick="goPage(${data.page + 1})">Next →</button>`;
+      document.getElementById("pagination").innerHTML = pgHtml;
+    }
+
+    function goPage(page) {
+      currentPage = page;
+      if (currentMode === "filter") loadProfiles();
+      else doSearch();
+    }
+
+    async function init() {
+      const user = await requireAuth();
+      if (!user) return;
+      document.getElementById("nav-placeholder").innerHTML = renderNav(user);
+
+      // Check if opened from NLP search link
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("search") === "1") switchTab("search");
+      else loadProfiles();
+    }
+
+    init();
+  </script>
+</body>
+</html>

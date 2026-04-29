@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insighta Labs — Profile Detail</title>
+  <script src="/web/app.js"></script>
+  <style id="shared-styles"></style>
+  <style>
+    .page { padding: 2rem; max-width: 700px; margin: 0 auto; }
+    .back-link { color: #7c6af7; text-decoration: none; font-size: 0.9rem; display: inline-flex;
+                 align-items: center; gap: 0.35rem; margin-bottom: 1.5rem; }
+    .back-link:hover { text-decoration: underline; }
+    .profile-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 16px; padding: 2rem; }
+    .profile-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;
+                      padding-bottom: 1.5rem; border-bottom: 1px solid #2d3148; }
+    .profile-avatar { width: 60px; height: 60px; border-radius: 50%; background: #7c6af7;
+                      display: flex; align-items: center; justify-content: center;
+                      font-size: 1.5rem; font-weight: 700; color: white; flex-shrink: 0; }
+    .profile-name { font-size: 1.4rem; font-weight: 700; }
+    .profile-id { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; font-family: monospace; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    .detail-item { }
+    .detail-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase;
+                    letter-spacing: 0.05em; margin-bottom: 0.35rem; }
+    .detail-value { font-size: 1rem; color: #e2e8f0; font-weight: 500; }
+    .probability-bar { height: 6px; background: #2d3148; border-radius: 3px; margin-top: 0.5rem; }
+    .probability-fill { height: 100%; border-radius: 3px; background: #7c6af7; transition: width 0.5s; }
+    .gender-badge { padding: 3px 10px; border-radius: 12px; font-size: 0.8rem; display: inline-block; margin-top: 2px; }
+    .gender-male { background: #3b82f622; color: #60a5fa; }
+    .gender-female { background: #ec489922; color: #f472b6; }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="page">
+    <a class="back-link" href="/web/profiles.html">← Back to Profiles</a>
+
+    <div id="content"><div class="spinner"></div></div>
+  </div>
+
+  <script>
+    document.getElementById("shared-styles").textContent = SHARED_STYLES;
+
+    async function init() {
+      const user = await requireAuth();
+      if (!user) return;
+      document.getElementById("nav-placeholder").innerHTML = renderNav(user);
+
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("id");
+
+      if (!id) {
+        document.getElementById("content").innerHTML = '<div class="empty">No profile ID provided.</div>';
+        return;
+      }
+
+      const res = await apiRequest("GET", `/api/profiles/${id}`);
+      if (!res) return;
+
+      if (!res.ok) {
+        const data = await res.json();
+        document.getElementById("content").innerHTML = `<div class="empty">${data.message}</div>`;
+        return;
+      }
+
+      const { data: p } = await res.json();
+      const initials = p.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+      document.title = `${p.name} — Insighta Labs`;
+
+      document.getElementById("content").innerHTML = `
+        <div class="profile-card">
+          <div class="profile-header">
+            <div class="profile-avatar">${initials}</div>
+            <div>
+              <div class="profile-name">${p.name}</div>
+              <div class="profile-id">${p.id}</div>
+            </div>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-item">
+              <div class="detail-label">Gender</div>
+              <div class="detail-value">
+                <span class="gender-badge gender-${p.gender}">${p.gender}</span>
+              </div>
+            </div>
+
+            <div class="detail-item">
+              <div class="detail-label">Gender Confidence</div>
+              <div class="detail-value">${(p.gender_probability * 100).toFixed(1)}%</div>
+              <div class="probability-bar">
+                <div class="probability-fill" style="width: ${p.gender_probability * 100}%"></div>
+              </div>
+            </div>
+
+            <div class="detail-item">
+              <div class="detail-label">Age</div>
+              <div class="detail-value">${p.age} years old</div>
+            </div>
+
+            <div class="detail-item">
+              <div class="detail-label">Age Group</div>
+              <div class="detail-value">${p.age_group}</div>
+            </div>
+
+            <div class="detail-item">
+              <div class="detail-label">Country</div>
+              <div class="detail-value">${p.country_name}</div>
+            </div>
+
+            <div class="detail-item">
+              <div class="detail-label">Country Confidence</div>
+              <div class="detail-value">${(p.country_probability * 100).toFixed(1)}%</div>
+              <div class="probability-bar">
+                <div class="probability-fill" style="width: ${p.country_probability * 100}%"></div>
+              </div>
+            </div>
+
+            <div class="detail-item">
+              <div class="detail-label">Country Code</div>
+              <div class="detail-value">${p.country_id}</div>
+            </div>
+
+            <div class="detail-item">
+              <div class="detail-label">Created At</div>
+              <div class="detail-value">${new Date(p.created_at).toLocaleDateString("en-GB", {
+                day: "numeric", month: "short", year: "numeric"
+              })}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    init();
+  </script>
+</body>
+</html>

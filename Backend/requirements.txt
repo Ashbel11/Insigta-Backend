@@ -1,0 +1,12 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+pydantic==2.10.3
+pydantic-core==2.27.1
+PyJWT==2.9.0
+httpx==0.28.1
+python-multipart==0.0.20
+itsdangerous==2.2.0
+aiofiles==23.2.1

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insighta Labs — Dashboard</title>
+  <script src="/web/app.js"></script>
+  <style id="shared-styles"></style>
+  <style>
+    .page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+    .welcome { margin-bottom: 2rem; }
+    .welcome h2 { font-size: 1.5rem; font-weight: 700; }
+    .welcome p { color: #94a3b8; margin-top: 0.25rem; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .stat-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; padding: 1.5rem; }
+    .stat-label { font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #7c6af7; }
+    .stat-sub { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
+    .quick-actions { margin-bottom: 2rem; }
+    .quick-actions h3 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #94a3b8; }
+    .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+    .action-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px;
+                   padding: 1.25rem; text-decoration: none; color: inherit; display: block;
+                   transition: border-color 0.2s; cursor: pointer; }
+    .action-card:hover { border-color: #7c6af7; }
+    .action-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .action-title { font-weight: 600; font-size: 0.9rem; }
+    .action-desc { font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="page">
+    <div class="welcome">
+      <h2 id="welcome-msg">Welcome back!</h2>
+      <p>Here's an overview of the Intelligence Query Engine.</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Profiles</div>
+        <div class="stat-value" id="total-profiles"><div class="spinner" style="width:24px;height:24px;margin:0"></div></div>
+        <div class="stat-sub">in the database</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Your Role</div>
+        <div class="stat-value" id="user-role" style="font-size:1.2rem;padding-top:0.5rem">—</div>
+        <div class="stat-sub">access level</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">API Version</div>
+        <div class="stat-value" style="font-size:1.2rem;padding-top:0.5rem">v3</div>
+        <div class="stat-sub">current version</div>
+      </div>
+    </div>
+
+    <div class="quick-actions">
+      <h3>QUICK ACTIONS</h3>
+      <div class="actions-grid">
+        <a class="action-card" href="/web/profiles.html">
+          <div class="action-icon">🔍</div>
+          <div class="action-title">Browse Profiles</div>
+          <div class="action-desc">Filter, sort and paginate</div>
+        </a>
+        <a class="action-card" href="/web/profiles.html?search=1">
+          <div class="action-icon">💬</div>
+          <div class="action-title">Natural Language Search</div>
+          <div class="action-desc">Query in plain English</div>
+        </a>
+        <a class="action-card" href="/web/export.html">
+          <div class="action-icon">📥</div>
+          <div class="action-title">Export CSV</div>
+          <div class="action-desc">Download all profiles</div>
+        </a>
+        <a class="action-card" href="/web/create.html" id="create-action" style="display:none">
+          <div class="action-icon">➕</div>
+          <div class="action-title">Create Profile</div>
+          <div class="action-desc">Admin only</div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("shared-styles").textContent = SHARED_STYLES;
+
+    async function init() {
+      const user = await requireAuth();
+      if (!user) return;
+
+      document.getElementById("nav-placeholder").innerHTML = renderNav(user);
+      document.getElementById("welcome-msg").textContent = `Welcome back, ${user.username}!`;
+      document.getElementById("user-role").textContent = user.role;
+
+      if (user.role === "admin") {
+        document.getElementById("create-action").style.display = "block";
+      }
+
+      // Fetch total profiles count
+      const res = await apiRequest("GET", "/api/profiles", null, { limit: 1 });
+      if (res && res.ok) {
+        const data = await res.json();
+        document.getElementById("total-profiles").textContent = data.total.toLocaleString();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

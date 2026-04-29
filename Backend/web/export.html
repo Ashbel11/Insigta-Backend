@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insighta Labs — Export</title>
+  <script src="/web/app.js"></script>
+  <style id="shared-styles"></style>
+  <style>
+    .page { padding: 2rem; max-width: 600px; margin: 0 auto; }
+    .export-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 16px; padding: 2rem; }
+    .export-card h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .export-card p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 2rem; }
+    .export-option { border: 1px solid #2d3148; border-radius: 12px; padding: 1.25rem;
+                     display: flex; align-items: center; justify-content: space-between;
+                     margin-bottom: 1rem; transition: border-color 0.2s; }
+    .export-option:hover { border-color: #7c6af7; }
+    .export-info { display: flex; align-items: center; gap: 1rem; }
+    .export-icon { font-size: 2rem; }
+    .export-title { font-weight: 600; font-size: 0.95rem; }
+    .export-desc { font-size: 0.8rem; color: #64748b; margin-top: 0.2rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; margin-top: 1rem; }
+    .alert-error { background: #ef444422; border: 1px solid #ef444444; color: #f87171; }
+    .alert-success { background: #22c55e22; border: 1px solid #22c55e44; color: #4ade80; }
+    .fields-list { background: #0f1117; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
+    .fields-list p { color: #64748b; font-size: 0.8rem; margin-bottom: 0.5rem; }
+    .fields { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .field-tag { background: #2d3148; color: #94a3b8; padding: 2px 8px;
+                 border-radius: 6px; font-size: 0.75rem; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="page">
+    <div class="export-card">
+      <h2>Export Profiles</h2>
+      <p>Download all demographic profiles from the database.</p>
+
+      <div class="fields-list">
+        <p>Included fields:</p>
+        <div class="fields">
+          <span class="field-tag">id</span>
+          <span class="field-tag">name</span>
+          <span class="field-tag">gender</span>
+          <span class="field-tag">gender_probability</span>
+          <span class="field-tag">age</span>
+          <span class="field-tag">age_group</span>
+          <span class="field-tag">country_id</span>
+          <span class="field-tag">country_name</span>
+          <span class="field-tag">country_probability</span>
+          <span class="field-tag">created_at</span>
+        </div>
+      </div>
+
+      <div class="export-option">
+        <div class="export-info">
+          <div class="export-icon">📄</div>
+          <div>
+            <div class="export-title">CSV Format</div>
+            <div class="export-desc">Comma-separated values, compatible with Excel & Google Sheets</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="export-btn" onclick="exportCSV()">Download</button>
+      </div>
+
+      <div id="alert" style="display:none" class="alert"></div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("shared-styles").textContent = SHARED_STYLES;
+
+    async function init() {
+      const user = await requireAuth();
+      if (!user) return;
+      document.getElementById("nav-placeholder").innerHTML = renderNav(user);
+    }
+
+    async function exportCSV() {
+      const btn = document.getElementById("export-btn");
+      btn.disabled = true;
+      btn.textContent = "Exporting...";
+
+      const alert = document.getElementById("alert");
+      alert.style.display = "none";
+
+      const res = await apiRequest("GET", "/api/profiles/export", null, { format: "csv" });
+
+      btn.disabled = false;
+      btn.textContent = "Download";
+
+      if (!res || !res.ok) {
+        alert.style.display = "block";
+        alert.className = "alert alert-error";
+        alert.textContent = "Export failed. Please try again.";
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "profiles.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+
+      alert.style.display = "block";
+      alert.className = "alert alert-success";
+      alert.textContent = "✓ profiles.csv downloaded successfully!";
+    }
+
+    init();
+  </script>
+</body>
+</html>

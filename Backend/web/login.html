@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insighta Labs — Login</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #0f1117; color: #e2e8f0; min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; }
+    .login-box { background: #1a1d27; border: 1px solid #2d3148; border-radius: 16px;
+                 padding: 2.5rem; width: 100%; max-width: 420px; text-align: center; }
+    .logo { font-size: 2rem; margin-bottom: 0.5rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 2rem; }
+    .btn-github { display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+                  background: #24292f; color: white; border: none; padding: 0.75rem 1.5rem;
+                  border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer;
+                  width: 100%; transition: background 0.2s; }
+    .btn-github:hover { background: #32393f; }
+    .btn-github:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error-msg { background: #ef444422; border: 1px solid #ef444444; color: #f87171;
+                 padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem; }
+    .divider { color: #4a5568; font-size: 0.8rem; margin: 1.5rem 0; }
+    .features { text-align: left; display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem; }
+    .feature { display: flex; gap: 0.5rem; align-items: center; font-size: 0.85rem; color: #94a3b8; }
+    .feature span:first-child { color: #7c6af7; }
+    svg { width: 22px; height: 22px; fill: currentColor; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="logo">⚡</div>
+    <h1>Insighta Labs</h1>
+    <p>Intelligence Query Engine — Stage 3</p>
+
+    <div id="error-msg" class="error-msg" style="display:none"></div>
+
+    <button class="btn-github" id="login-btn" onclick="startLogin()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57
+                 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41
+                 -1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815
+                 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925
+                 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23
+                 .96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65
+                 .24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925
+                 .435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57
+                 A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+      </svg>
+      Continue with GitHub
+    </button>
+
+    <div class="features">
+      <div class="feature"><span>🔐</span><span>Secure GitHub OAuth with PKCE</span></div>
+      <div class="feature"><span>👥</span><span>Role-based access (admin / analyst)</span></div>
+      <div class="feature"><span>🔍</span><span>Natural language profile search</span></div>
+    </div>
+  </div>
+
+  <script>
+    // Check for error param
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get("error");
+    if (error) {
+      const el = document.getElementById("error-msg");
+      el.style.display = "block";
+      el.textContent = {
+        auth_failed: "GitHub authentication failed. Please try again.",
+        user_fetch_failed: "Could not fetch GitHub user info.",
+        inactive: "Your account has been deactivated.",
+      }[error] || "Login failed. Please try again.";
+    }
+
+    function generateCodeVerifier() {
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      return btoa(String.fromCharCode(...array))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    }
+
+    async function generateCodeChallenge(verifier) {
+      const data = new TextEncoder().encode(verifier);
+      const digest = await crypto.subtle.digest("SHA-256", data);
+      return btoa(String.fromCharCode(...new Uint8Array(digest)))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    }
+
+    function generateState() {
+      const array = new Uint8Array(16);
+      crypto.getRandomValues(array);
+      return Array.from(array).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function startLogin() {
+      const btn = document.getElementById("login-btn");
+      btn.disabled = true;
+      btn.textContent = "Redirecting...";
+
+      const verifier = generateCodeVerifier();
+      const challenge = await generateCodeChallenge(verifier);
+      const state = generateState();
+
+      // Store verifier in sessionStorage to retrieve after callback
+      sessionStorage.setItem("pkce_verifier", verifier);
+      sessionStorage.setItem("pkce_state", state);
+
+      const params = new URLSearchParams({ state, code_challenge: challenge, code_challenge_method: "S256" });
+      window.location.href = `/web/auth/login?${params.toString()}`;
+    }
+  </script>
+</body>
+</html>

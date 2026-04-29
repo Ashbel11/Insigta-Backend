@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insighta Labs — Create Profile</title>
+  <script src="/web/app.js"></script>
+  <style id="shared-styles"></style>
+  <style>
+    .page { padding: 2rem; max-width: 600px; margin: 0 auto; }
+    .back-link { color: #7c6af7; text-decoration: none; font-size: 0.9rem; display: inline-flex;
+                 align-items: center; gap: 0.35rem; margin-bottom: 1.5rem; }
+    .back-link:hover { text-decoration: underline; }
+    .form-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 16px; padding: 2rem; }
+    .form-card h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .form-card p { color: #64748b; font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 1rem; }
+    .alert-error { background: #ef444422; border: 1px solid #ef444444; color: #f87171; }
+    .alert-success { background: #22c55e22; border: 1px solid #22c55e44; color: #4ade80; }
+    .admin-badge { display: inline-flex; align-items: center; gap: 0.4rem; background: #7c3aed22;
+                   color: #a78bfa; border: 1px solid #7c3aed44; padding: 3px 10px;
+                   border-radius: 10px; font-size: 0.75rem; margin-bottom: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div id="nav-placeholder"></div>
+
+  <div class="page">
+    <a class="back-link" href="/web/profiles.html">← Back to Profiles</a>
+
+    <div id="content"><div class="spinner"></div></div>
+  </div>
+
+  <script>
+    document.getElementById("shared-styles").textContent = SHARED_STYLES;
+
+    async function init() {
+      const user = await requireAuth();
+      if (!user) return;
+
+      document.getElementById("nav-placeholder").innerHTML = renderNav(user);
+
+      if (user.role !== "admin") {
+        document.getElementById("content").innerHTML = `
+          <div class="form-card">
+            <div class="empty">
+              <div style="font-size:2rem;margin-bottom:1rem">🔒</div>
+              <p style="color:#94a3b8">This page is for admins only.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById("content").innerHTML = `
+        <div class="form-card">
+          <h2>Create Profile</h2>
+          <p>Add a new demographic profile to the database.</p>
+          <div class="admin-badge">🔐 Admin Only</div>
+
+          <div id="alert" style="display:none" class="alert"></div>
+
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Full Name *</label>
+              <input type="text" id="name" placeholder="e.g. Amina Okafor" />
+            </div>
+            <div class="form-group">
+              <label>Gender *</label>
+              <select id="gender">
+                <option value="">Select...</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Gender Probability *</label>
+              <input type="number" id="gender-prob" placeholder="0.95" min="0" max="1" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label>Age *</label>
+              <input type="number" id="age" placeholder="25" min="0" max="120" />
+            </div>
+            <div class="form-group">
+              <label>Age Group *</label>
+              <select id="age-group">
+                <option value="">Select...</option>
+                <option value="child">Child</option>
+                <option value="teenager">Teenager</option>
+                <option value="adult">Adult</option>
+                <option value="senior">Senior</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Country ID *</label>
+              <input type="text" id="country-id" placeholder="NG" maxlength="2" />
+            </div>
+            <div class="form-group">
+              <label>Country Name *</label>
+              <input type="text" id="country-name" placeholder="Nigeria" />
+            </div>
+            <div class="form-group full">
+              <label>Country Probability *</label>
+              <input type="number" id="country-prob" placeholder="0.88" min="0" max="1" step="0.01" />
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn btn-primary" id="submit-btn" onclick="submitForm()">Create Profile</button>
+            <button class="btn btn-outline" onclick="resetForm()">Reset</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function showAlert(type, msg) {
+      const el = document.getElementById("alert");
+      el.style.display = "block";
+      el.className = `alert alert-${type}`;
+      el.textContent = msg;
+    }
+
+    function resetForm() {
+      ["name", "gender-prob", "age", "country-id", "country-name", "country-prob"].forEach(
+        id => document.getElementById(id).value = ""
+      );
+      ["gender", "age-group"].forEach(id => document.getElementById(id).value = "");
+      document.getElementById("alert").style.display = "none";
+    }
+
+    async function submitForm() {
+      const name = document.getElementById("name").value.trim();
+      const gender = document.getElementById("gender").value;
+      const genderProb = parseFloat(document.getElementById("gender-prob").value);
+      const age = parseInt(document.getElementById("age").value);
+      const ageGroup = document.getElementById("age-group").value;
+      const countryId = document.getElementById("country-id").value.trim().toUpperCase();
+      const countryName = document.getElementById("country-name").value.trim();
+      const countryProb = parseFloat(document.getElementById("country-prob").value);
+
+      if (!name || !gender || !ageGroup || !countryId || !countryName) {
+        return showAlert("error", "Please fill in all required fields.");
+      }
+      if (isNaN(genderProb) || genderProb < 0 || genderProb > 1) {
+        return showAlert("error", "Gender probability must be between 0 and 1.");
+      }
+      if (isNaN(age) || age < 0) {
+        return showAlert("error", "Please enter a valid age.");
+      }
+      if (isNaN(countryProb) || countryProb < 0 || countryProb > 1) {
+        return showAlert("error", "Country probability must be between 0 and 1.");
+      }
+
+      const btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Creating...";
+
+      const res = await apiRequest("POST", "/api/profiles", {
+        name, gender, gender_probability: genderProb,
+        age, age_group: ageGroup, country_id: countryId,
+        country_name: countryName, country_probability: countryProb,
+      });
+
+      btn.disabled = false;
+      btn.textContent = "Create Profile";
+
+      if (!res) return;
+      const data = await res.json();
+
+      if (res.status === 201) {
+        showAlert("success", `✓ Profile "${data.data.name}" created successfully!`);
+        resetForm();
+      } else {
+        showAlert("error", data.message || "Failed to create profile.");
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
