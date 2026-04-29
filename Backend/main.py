@@ -31,7 +31,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
 app.add_middleware(APIVersionMiddleware)    
 app.add_middleware(RateLimitMiddleware)    
 app.add_middleware(RequestLoggingMiddleware)  
