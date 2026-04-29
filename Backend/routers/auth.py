@@ -27,16 +27,22 @@ def error_response(status_code: int, message: str) -> JSONResponse:
 
 
 # ── GET /auth/github ──────────────────────────────────────────────────────────
+# routers/auth.py
 @router.get("/github")
 def github_login(
-    state: str = Query(...),
-    code_challenge: str = Query(...),
+    state: str = Query(None),
+    code_challenge: str = Query(None),
     code_challenge_method: str = Query("S256"),
 ):
-    """
-    Redirect to GitHub OAuth page.
-    Accepts state and code_challenge from the client (CLI or browser).
-    """
+    import secrets, hashlib, base64
+    # Generate defaults if not provided
+    if not state:
+        state = secrets.token_hex(16)
+    if not code_challenge:
+        verifier = secrets.token_urlsafe(32)
+        digest = hashlib.sha256(verifier.encode()).digest()
+        code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
     params = (
         f"client_id={GITHUB_CLIENT_ID}"
         f"&redirect_uri={GITHUB_REDIRECT_URI}"
@@ -46,7 +52,6 @@ def github_login(
         f"&code_challenge_method={code_challenge_method}"
     )
     return RedirectResponse(url=f"https://github.com/login/oauth/authorize?{params}")
-
 
 # ── GET /auth/github/callback ─────────────────────────────────────────────────
 @router.get("/github/callback")

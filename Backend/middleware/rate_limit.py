@@ -6,14 +6,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # Per-route limits: (max_requests, window_seconds)
 RATE_LIMITS = {
-    "/auth/github":          (10, 60),
-    "/auth/github/callback": (10, 60),
+    "/auth/github":          (20, 60),
+    "/auth/github/callback": (20, 60),
     "/auth/refresh":         (10, 60),
     "/api/profiles":         (60, 60),
     "/api/profiles/search":  (30, 60),
 }
 
-DEFAULT_LIMIT = (60, 60)
+DEFAULT_LIMIT = (100, 60)
 
 # In-memory store: {route: {ip: [timestamps]}}
 _request_log: dict = defaultdict(lambda: defaultdict(list))
