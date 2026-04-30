@@ -6,7 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # Per-route limits: (max_requests, window_seconds)
 RATE_LIMITS = {
-    "/auth/github":          (20, 60),
+    "/auth/github":          (10, 60),
     "/auth/github/callback": (20, 60),
     "/auth/refresh":         (10, 60),
     "/api/profiles":         (60, 60),
