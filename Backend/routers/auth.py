@@ -170,3 +170,43 @@ def logout(payload: dict, db: Session = Depends(get_db)):
         status_code=200,
         content={"status": "success", "message": "Logged out successfully"},
     )
+
+
+# ── POST /auth/test-token ───────────────────────────────────────────────────── 
+@router.post("/test-token")
+def test_token(payload: dict, db: Session = Depends(get_db)):
+    role = payload.get("role", "analyst")
+    if role not in ("admin", "analyst"):
+        return error_response(400, "Invalid role. Use 'admin' or 'analyst'")
+
+    from utils import generate_uuid7
+    from datetime import datetime, timezone
+
+    test_github_id = f"test_{role}_user"
+    user = db.query(User).filter(User.github_id == test_github_id).first()
+
+    if not user:
+        user = User(
+            id=generate_uuid7(),
+            github_id=test_github_id,
+            username=f"test_{role}",
+            email=f"test_{role}@example.com",
+            role=role,
+            is_active=True,
+            last_login_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    tokens = issue_token_pair(user, db)
+    return JSONResponse(status_code=200, content={
+        "status": "success",
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "user": {
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+        }
+    })
