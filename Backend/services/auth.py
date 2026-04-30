@@ -12,18 +12,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 3))
 REFRESH_TOKEN_EXPIRE_MINUTES = int(os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", 5))
 
 
-def create_access_token(user: User) -> str:
+def create_access_token(user: User, expires_minutes: int = None) -> str:
     now = datetime.now(timezone.utc)
+    expiry = expires_minutes or ACCESS_TOKEN_EXPIRE_MINUTES
     payload = {
         "sub": str(user.id),
         "github_id": user.github_id,
         "username": user.username,
         "role": user.role,
         "iat": now,
-        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "exp": now + timedelta(minutes=expiry),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
 
 def create_refresh_token(user: User, db: Session) -> str:
     token_str = secrets.token_urlsafe(64)

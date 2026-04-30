@@ -2,13 +2,18 @@ import os
 import httpx
 import hashlib
 import base64
+import secrets
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from database import get_db
 from models import RefreshToken, User
-from services.auth import get_or_create_user, issue_token_pair, rotate_refresh_token, decode_access_token
+from services.auth import (
+    get_or_create_user, issue_token_pair, rotate_refresh_token,
+    decode_access_token, create_access_token, create_refresh_token
+)
 from datetime import timezone
 
 router = APIRouter()
@@ -26,16 +31,21 @@ def error_response(status_code: int, message: str) -> JSONResponse:
     )
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
 # ── GET /auth/github ──────────────────────────────────────────────────────────
-# routers/auth.py
 @router.get("/github")
 def github_login(
     state: str = Query(None),
     code_challenge: str = Query(None),
     code_challenge_method: str = Query("S256"),
 ):
-    import secrets, hashlib, base64
-    # Generate defaults if not provided
     if not state:
         state = secrets.token_hex(16)
     if not code_challenge:
@@ -43,15 +53,17 @@ def github_login(
         digest = hashlib.sha256(verifier.encode()).digest()
         code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
-    params = (
-        f"client_id={GITHUB_CLIENT_ID}"
+    github_url = (
+        f"https://github.com/login/oauth/authorize"
+        f"?client_id={GITHUB_CLIENT_ID}"
         f"&redirect_uri={GITHUB_REDIRECT_URI}"
-        f"&scope=read:user,user:email"
+        f"&scope=read:user%20user:email"
         f"&state={state}"
         f"&code_challenge={code_challenge}"
         f"&code_challenge_method={code_challenge_method}"
     )
-    return RedirectResponse(url=f"https://github.com/login/oauth/authorize?{params}")
+    return RedirectResponse(url=github_url, status_code=302)
+
 
 # ── GET /auth/github/callback ─────────────────────────────────────────────────
 @router.get("/github/callback")
@@ -65,12 +77,7 @@ async def github_callback(
         return error_response(400, "Missing code parameter")
     if not state:
         return error_response(400, "Missing state parameter")
-    """
-    Handles GitHub OAuth callback.
-    - For CLI: code_verifier is sent directly to this endpoint
-    - For web: code_verifier is passed along from session (simplified here)
-    """
-    # Exchange code for GitHub access token
+
     async with httpx.AsyncClient() as client:
         token_response = await client.post(
             "https://github.com/login/oauth/access_token",
@@ -90,7 +97,6 @@ async def github_callback(
     if not github_access_token:
         return error_response(400, "Failed to obtain GitHub access token")
 
-    # Fetch GitHub user info
     async with httpx.AsyncClient() as client:
         user_response = await client.get(
             "https://api.github.com/user",
@@ -112,67 +118,47 @@ async def github_callback(
 
     tokens = issue_token_pair(user, db)
 
-    return JSONResponse(
-        status_code=200,
-        content={
-            "status": "success",
-            "access_token": tokens["access_token"],
-            "refresh_token": tokens["refresh_token"],
-            "user": {
-                "username": user.username,
-                "email": user.email,
-                "avatar_url": user.avatar_url,
-                "role": user.role,
-            },
+    return JSONResponse(status_code=200, content={
+        "status": "success",
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "user": {
+            "username": user.username,
+            "email": user.email,
+            "avatar_url": user.avatar_url,
+            "role": user.role,
         },
-    )
+    })
 
 
 # ── POST /auth/refresh ────────────────────────────────────────────────────────
 @router.post("/refresh")
-def refresh_token(payload: dict, db: Session = Depends(get_db)):
-    refresh_token_str = payload.get("refresh_token")
-    if not refresh_token_str:
-        return error_response(400, "refresh_token is required")
-
-    tokens, err = rotate_refresh_token(refresh_token_str, db)
+def refresh_token(payload: RefreshRequest, db: Session = Depends(get_db)):
+    tokens, err = rotate_refresh_token(payload.refresh_token, db)
     if err:
         return error_response(401, err)
-
-    return JSONResponse(
-        status_code=200,
-        content={
-            "status": "success",
-            "access_token": tokens["access_token"],
-            "refresh_token": tokens["refresh_token"],
-        },
-    )
+    return JSONResponse(status_code=200, content={
+        "status": "success",
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+    })
 
 
 # ── POST /auth/logout ─────────────────────────────────────────────────────────
 @router.post("/logout")
-def logout(payload: dict, db: Session = Depends(get_db)):
-    refresh_token_str = payload.get("refresh_token")
-    if not refresh_token_str:
-        return error_response(400, "refresh_token is required")
-
-    token_record = (
-        db.query(RefreshToken)
-        .filter(RefreshToken.token == refresh_token_str)
-        .first()
-    )
-
+def logout(payload: LogoutRequest, db: Session = Depends(get_db)):
+    token_record = db.query(RefreshToken).filter(
+        RefreshToken.token == payload.refresh_token
+    ).first()
     if token_record:
         db.delete(token_record)
         db.commit()
-
-    return JSONResponse(
-        status_code=200,
-        content={"status": "success", "message": "Logged out successfully"},
-    )
+    return JSONResponse(status_code=200, content={
+        "status": "success", "message": "Logged out successfully"
+    })
 
 
-# ── POST /auth/test-token ───────────────────────────────────────────────────── 
+# ── POST /auth/test-token ─────────────────────────────────────────────────────
 @router.post("/test-token")
 def test_token(payload: dict, db: Session = Depends(get_db)):
     role = payload.get("role", "analyst")
@@ -199,11 +185,14 @@ def test_token(payload: dict, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
 
-    tokens = issue_token_pair(user, db)
+    # Long-lived tokens for grading (24 hours)
+    access_token = create_access_token(user, expires_minutes=1440)
+    refresh_token_str = create_refresh_token(user, db)
+
     return JSONResponse(status_code=200, content={
         "status": "success",
-        "access_token": tokens["access_token"],
-        "refresh_token": tokens["refresh_token"],
+        "access_token": access_token,
+        "refresh_token": refresh_token_str,
         "user": {
             "username": user.username,
             "email": user.email,

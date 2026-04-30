@@ -53,6 +53,32 @@ def validate_csrf_token(token: str, session_id: str) -> bool:
     except BadSignature:
         return False
 
+@router.get("/github")
+def web_github_login(
+    state: str = Query(None),
+    code_challenge: str = Query(None),
+    code_challenge_method: str = Query("S256"),
+):
+    import secrets, hashlib, base64
+
+    if not state:
+        state = secrets.token_hex(16)
+    if not code_challenge:
+        verifier = secrets.token_urlsafe(32)
+        digest = hashlib.sha256(verifier.encode()).digest()
+        code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+    github_url = (
+        f"https://github.com/login/oauth/authorize"
+        f"?client_id={GITHUB_CLIENT_ID}"
+        f"&redirect_uri={GITHUB_REDIRECT_URI_WEB}"
+        f"&scope=read:user%20user:email"
+        f"&state={state}"
+        f"&code_challenge={code_challenge}"
+        f"&code_challenge_method={code_challenge_method}"
+    )
+    return RedirectResponse(url=github_url, status_code=302) 
+
 
 # ── GET /web/auth/login ───────────────────────────────────────────────────────
 @router.get("/auth/login")
@@ -210,3 +236,4 @@ def web_me(
             "role": user.role,
         }
     })
+
